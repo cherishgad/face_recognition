@@ -28,7 +28,7 @@ from tensorflow.python.framework import tensor_shape
 from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from dataset import Dataset, create_dataset_info
-from bottleneck import model
+from whole_model import model
 
 def prepare_file_system():
   # Setup the directory we'll write summaries to for TensorBoard
