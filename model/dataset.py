@@ -194,7 +194,7 @@ def make_index_numpys(image_lists, category):
       tf.logging.fatal('Label %s has no images in the category %s.',
                        label_name, category)
     for image_index in range(len(category_list)):
-      index_numpys.append(np.arrays([label_index, image_index]))
+      index_numpys.append(np.array([label_index, image_index]))
 
   return index_numpys
 
