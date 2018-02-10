@@ -155,9 +155,9 @@ def create_dataset_info(image_dir, testing_percentage, validation_percentage):
   Returns:
     Dictionary of information about the setting
   """
-  if not isinstance(testing_percentage, int):
+  if not isinstance(type(testing_percentage), int):
     tf.logging.fatal('testing_percentage does not int type.')
-  if not isinstance(validation_percentage, int):
+  if not isinstance(type(validation_percentage), int):
     tf.logging.fatal('validation_percentage does not int type.')
   if testing_percentage >= 100 or testing_percentage < 0:
     tf.logging.fatal('testing_percentage is out of range %d.',
