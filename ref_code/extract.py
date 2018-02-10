@@ -42,8 +42,8 @@ with open(args.croppedTSV, 'r') as tsvF:
         savePath = os.path.join(saveDir, "{}-{}.jpg".format(imgSearchRank, faceID))
 
         # assert(magic.from_buffer(data) == 'JPEG image data, JFIF standard 1.01')
-
-        os.makedirs(saveDir, exist_ok=True)
+        if not os.path.isdir(saveDir):
+            os.makedirs(saveDir)
         with open(savePath, 'wb') as f:
             f.write(data)
 

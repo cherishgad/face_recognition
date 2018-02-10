@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.contrib.layers import batch_norm, flatten
 from tensorflow.contrib.layers import xavier_initializer
 from tensorflow.contrib.framework import arg_scope
-
+import numpy as np
 def conv_layer(input, filter, kernel, stride=1, layer_name="conv"):
     with tf.name_scope(layer_name):
         network = tf.layers.conv2d(inputs=input, use_bias=False, filters=filter, kernel_size=kernel, strides=stride, padding='SAME')
@@ -75,7 +75,7 @@ def create_densenet_info(nb_blocks_layers = [6, 12, 48, 32], filters = 24,
 class DenseNet():
     def __init__(self, x, training, dropout_rate, densenet_info):
         self.training = training
-        if not isinstance(type(self.training), tf.placeholder(tf.bool)):
+        if not isinstance(type(self.training), type(tf.placeholder(tf.bool))):
             tf.logging.fatal('DenseNet: training_flag does not bool type.')
         self.dropout_rate = dropout_rate
         if not isinstance(type(self.dropout_rate), float):
@@ -94,14 +94,14 @@ class DenseNet():
             x = Relu(x)
             x = conv_layer(x, filter=4 * self.filters, kernel=[1,1],
                                             layer_name=scope+'_conv1')
-            x = Drop_out(x, rate=dropout_rate, training=self.training)
+            x = Drop_out(x, rate=self.dropout_rate, training=self.training)
 
             x = Batch_Normalization(x, training=self.training,
                                         scope=scope+'_batch2')
             x = Relu(x)
             x = conv_layer(x, filter=self.filters, kernel=[3,3],
                                         layer_name=scope+'_conv2')
-            x = Drop_out(x, rate=dropout_rate, training=self.training)
+            x = Drop_out(x, rate=self.dropout_rate, training=self.training)
 
             # print(x)
 
@@ -114,7 +114,7 @@ class DenseNet():
             x = Relu(x)
             x = conv_layer(x, filter=self.filters, kernel=[1,1],
                                         layer_name=scope+'_conv1')
-            x = Drop_out(x, rate=dropout_rate, training=self.training)
+            x = Drop_out(x, rate=self.dropout_rate, training=self.training)
             x = Average_pooling(x, pool_size=[2,2], stride=2)
 
             return x

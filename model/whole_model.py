@@ -318,14 +318,15 @@ class Model:
   def create_model(self):
     FLAGS = self.FLAGS
     model_info = self.model_info
-    # Set up the bottleneck graph(main graph).
-    self.feature_tensor = self.create_bottleneck()
 
     # Set up the image decoding sub-graph.
     self.jpeg_data_tensor, self.input_tensor = add_jpeg_decoding(
         model_info['input_width'], model_info['input_height'],
         model_info['input_depth'], model_info['input_mean'],
         model_info['input_std'])
+
+    # Set up the bottleneck graph(main graph).
+    self.feature_tensor = self.create_bottleneck()
 
     # Add the new layer that we'll be training.
     self.bottleneck_info = create_bottleneck_info(
