@@ -334,16 +334,15 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor,
           final_tensor)
 
 
-def create_bottleneck_info(train_step, cross_entropy_mean, bottleneck_input,
-                            ground_truth_input, final_tensor):
-  return { 'train_step': train_step, 'cross_entropy_mean': cross_entropy_mean,
- 'bottleneck_input': bottleneck_input, 'ground_truth_input': ground_truth_input,
- 'final_tensor': final_tensor }
+def create_bottleneck_info(train_tuple):
+  return { 'train_step': train_tuple[0], 'cross_entropy_mean': train_tuple[1],
+ 'bottleneck_input': train_tuple[2], 'ground_truth_input': train_tuple[3],
+ 'final_tensor': train_tuple[4] }
 
 
-def create_evaluation_info(evaluation_step, prediction):
-  return { 'evaluation_step': evaluation_step,
-            'prediction': prediction }
+def create_evaluation_info(evaluation_tuple):
+  return { 'evaluation_step': evaluation_tuple[0],
+            'prediction': evaluation_tuple[1] }
 
 
 def add_evaluation_step(result_tensor, ground_truth_tensor):
@@ -364,7 +363,7 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     with tf.name_scope('accuracy'):
       evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
   tf.summary.scalar('accuracy', evaluation_step)
-  return evaluation_step, prediction
+  return (evaluation_step, prediction)
 
 
 class Model:
