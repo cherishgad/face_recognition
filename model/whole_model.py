@@ -26,6 +26,59 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from densenet import DenseNet, create_densenet_info
 
+def save_graph_to_file(sess, graph, graph_file_name, final_tensor_name):
+  output_graph_def = graph_util.convert_variables_to_constants(
+      sess, graph.as_graph_def(), [final_tensor_name])
+
+  with gfile.FastGFile(graph_file_name, 'wb') as f:
+    f.write(output_graph_def.SerializeToString())
+  return
+
+
+def get_batch_image(sess, jpeg_data_tensor, decoded_image_tensor, image_datas):
+  """Retrieves resized input values.
+
+  If no distortions are being applied, this function can retrieve the resized input
+  bottleneck values directly from disk for images.
+
+  Args:
+    sess: Current TensorFlow Session.
+    jpeg_data_tensor: The layer to feed jpeg image data into.
+    decoded_image_tensor: The output of decoding and resizing the image.
+    image_datas: List of data which need to convert tensor
+
+  Returns:
+    List of resized input arrays
+  """
+  resized_inputs = []
+  for image_data in image_datas:
+      resized_input= run_resize_input_on_image(sess, image_data, jpeg_data_tensor,
+                                           decoded_image_tensor)
+      resized_inputs.append(resized_input)
+
+  return resized_inputs
+
+
+def run_resize_input_on_image(sess, image_data, image_data_tensor,
+                                            decoded_image_tensor):
+  """Runs inference on an jpeg image to resize.
+
+  Args:
+    sess: Current active TensorFlow Session.
+    image_data: String of raw JPEG data.
+    image_data_tensor: Input data layer in the graph.
+    decoded_image_tensor: Output of initial image resizing and preprocessing.
+
+  Returns:
+    Numpy array of resize image values.
+  """
+  # First decode the JPEG image, resize it, and rescale the pixel values.
+  resized_input_values = sess.run(decoded_image_tensor,
+                                  {image_data_tensor: image_data})
+
+  resized_input_values = np.squeeze(resized_input_values)
+  return resized_input_values
+
 def add_jpeg_decoding(input_width, input_height, input_depth, input_mean,
                       input_std):
   """Adds operations that perform JPEG decoding and resizing to the graph..
@@ -51,7 +104,10 @@ def add_jpeg_decoding(input_width, input_height, input_depth, input_mean,
                                            resize_shape_as_int)
   offset_image = tf.subtract(resized_image, input_mean)
   mul_image = tf.multiply(offset_image, 1.0 / input_std)
-  return jpeg_data, mul_image
+  resized_input_tensor = tf.placeholder_with_default(mul_image, shape = (None,
+                                input_height, input_width, input_depth ),
+                                    name='ResizedInputPlaceholder')
+  return jpeg_data, mul_image, resized_input_tensor
 
 
 def create_model_info(architecture):
@@ -81,7 +137,7 @@ def create_model_info(architecture):
     input_width = 300
     input_height = 300
     input_depth = 3
-    resized_input_tensor_name = 'conv0'
+    resized_input_tensor_name = 'ResizedInputPlaceholder'
     model_file_name = None
     input_mean = 128
     input_std = 128
@@ -320,7 +376,7 @@ class Model:
     model_info = self.model_info
 
     # Set up the image decoding sub-graph.
-    self.jpeg_data_tensor, self.input_tensor = add_jpeg_decoding(
+    self.jpeg_data_tensor, self.decoded_image_tensor, self.input_tensor = add_jpeg_decoding(
         model_info['input_width'], model_info['input_height'],
         model_info['input_depth'], model_info['input_mean'],
         model_info['input_std'])
@@ -331,7 +387,7 @@ class Model:
     # Add the new layer that we'll be training.
     self.bottleneck_info = create_bottleneck_info(
                         add_final_training_ops(self.Dataset.class_num,
-                            self.FLAGS.final_tensor_name, feature_tensor,
+                            self.FLAGS.final_tensor_name, self.feature_tensor,
                             self.bottleneck_dim, model_info['quantize_layer']), self.FLAGS)
 
     # Create the operations we need to evaluate the accuracy of our new layer.
@@ -373,14 +429,17 @@ class Model:
                             category = 'validation')
     for i in range(self.FLAGS.how_many_training_steps):
 
-      # Get a batch of input bottleneck values, either calculated fresh every
+      # Get a batch of input values, either calculated fresh every
       (train_image_datas, train_ground_truths, _)=train_generator.next()
+      train_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
+                                          self.decoded_image_tensor,
+                                          train_image_datas)
 
       # Feed the bottlenecks and ground truth into the graph, and run a training
       # step. Capture training summaries for TensorBoard with the `merged` op.
-      train_summary, _ = sess.run(
+      train_summary, _ = self.sess.run(
           [self.merged, self.bottleneck_info['train_step']],
-          feed_dict={self.jpeg_data_tensor: train_image_datas,
+          feed_dict={self.input_tensor: train_input_datas,
                 self.bottleneck_info['ground_truth_input']: train_ground_truths,
                 self.training_flag: True })
       self.train_writer.add_summary(train_summary, i)
@@ -388,29 +447,35 @@ class Model:
       # Every so often, print out how well the graph is training.
       is_last_step = (i + 1 == self.FLAGS.how_many_training_steps)
       if (i % self.FLAGS.eval_step_interval) == 0 or is_last_step:
-        train_accuracy, cross_entropy_value = sess.run(
+        train_accuracy, cross_entropy_value = self.sess.run(
             [self.evaluation_info['evaluation_step'],
             self.bottleneck_info['cross_entropy']],
-            feed_dict={self.jpeg_data_tensor: train_image_datas,
+            feed_dict={self.input_tensor: train_input_datas,
                  self.bottleneck_info['ground_truth_input']: train_ground_truths,
                  self.training_flag: False })
         tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' %
                         (datetime.now(), i, train_accuracy * 100))
         tf.logging.info('%s: Step %d: Cross entropy = %f' %
                         (datetime.now(), i, cross_entropy_value))
+
+        # Get a batch of input values, either calculated fresh every
         (validation_image_datas, validation_ground_truths, _
                                                 ) = validation_generator.next()
+        validation_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
+                                            self.decoded_image_tensor,
+                                            validation_image_datas)
+
         # Run a validation step and capture training summaries for TensorBoard
         # with the `merged` op.
-        validation_summary, validation_accuracy = sess.run(
+        validation_summary, validation_accuracy = self.sess.run(
             [self.merged, self.evaluation_info['evaluation_step']],
-            feed_dict={self.jpeg_data_tensor: validation_image_datas,
+            feed_dict={self.input_tensor: validation_input_datas,
             self.bottleneck_info['ground_truth_input']: validation_ground_truths,
             self.training_flag: False })
         self.validation_writer.add_summary(validation_summary, i)
         tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
                         (datetime.now(), i, validation_accuracy * 100,
-                         len(validation_bottlenecks)))
+                         len(self.model_info['bottleneck_tensor_size'])))
 
       # Store intermediate results
       intermediate_frequency = self.FLAGS.intermediate_store_frequency
@@ -421,7 +486,7 @@ class Model:
                                   'intermediate_' + str(i) + '.pb')
         tf.logging.info('Save intermediate result to : ' +
                         intermediate_file_name)
-        save_graph_to_file(self.sess, self.graph, intermediate_file_name)
+        save_graph_to_file(self.sess, self.graph, intermediate_file_name, self.FLAGS.final_tensor_name)
 
   def test(self):
     # We've completed all our training, so run a final test evaluation on
@@ -429,51 +494,26 @@ class Model:
     test_generator = self.dataset.create_batch(
                             batch_size = self.FLAGS.test_batch_size,
                             category = 'testing')
+    # Get a batch of input values, either calculated fresh every
     (test_image_datas, test_ground_truths, test_filenames
-                                        )= test_generator.next()
-    test_accuracy, predictions = sess.run(
+     ) = test_generator.next()
+    test_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
+                                       self.decoded_image_tensor,
+                                       test_image_datas)
+
+    test_accuracy, predictions = self.sess.run(
         [self.evaluation_info['evaluation_step'],
         self.evaluation_info['prediction']],
-        feed_dict={self.jpeg_data_tensor: test_image_datas,
+        feed_dict={self.input_tensor: test_input_datas,
         self.bottleneck_info['ground_truth_input']: test_ground_truths,
         self.training_flag: False })
     tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
-                    (test_accuracy * 100, len(test_bottlenecks)))
+                    (test_accuracy * 100, len(self.model_info['bottleneck_tensor_size'])))
 
     if self.FLAGS.print_misclassified_test_images:
       tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
       for i, test_filename in enumerate(test_filenames):
-        if predictions[i] != test_ground_truth[i]:
+        if predictions[i] != test_ground_truths[i]:
           tf.logging.info('%70s  %s' %
                         (test_filename,
                          list(self.dataset.image_lists.keys())[predictions[i]]))
-  def save_graph_to_file(self):
-    # Write out the trained graph and labels with the weights stored as
-    # constants.
-    save_graph_to_file(self.sess, self.graph, self.FLAGS.output_graph)
-    with gfile.FastGFile(self.FLAGS.output_labels, 'w') as f:
-      f.write('\n'.join(self.dataset.image_lists.keys()) + '\n')
-
-  def predict_model(self, sess):
-    # We've completed all our training, so run a final test evaluation on
-    # some new images we haven't used before.
-    test_bottlenecks, test_ground_truth, test_filenames = (
-        get_random_cached_bottlenecks(
-            sess, image_lists, self.FLAGS.test_batch_size, 'testing',
-            self.FLAGS.bottleneck_dir, self.FLAGS.image_dir, jpeg_data_tensor,
-            decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
-            self.FLAGS.architecture))
-    test_accuracy, predictions = sess.run(
-        [self.evaluation_step, prediction],
-        feed_dict={bottleneck_input: test_bottlenecks,
-                   ground_truth_input: test_ground_truth})
-    tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
-                    (test_accuracy * 100, len(test_bottlenecks)))
-
-    if self.FLAGS.print_misclassified_test_images:
-      tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
-      for i, test_filename in enumerate(test_filenames):
-        if predictions[i] != test_ground_truth[i]:
-          tf.logging.info('%70s  %s' %
-                          (test_filename,
-                           list(image_lists.keys())[predictions[i]]))
