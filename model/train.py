@@ -28,7 +28,7 @@ from tensorflow.python.framework import tensor_shape
 from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from dataset import Dataset, create_dataset_info
-from whole_model import model
+from whole_model import Model
 
 def prepare_file_system():
   # Setup the directory we'll write summaries to for TensorBoard
@@ -60,7 +60,8 @@ def main(_):
                      FLAGS.image_dir +
                      ' - multiple classes are needed for classification.')
     return -1
-  graph = tf.Graph().as_default()
+  with tf.Graph().as_default() as graph:
+    print("sucess: making dataset")
   with tf.Session(graph=graph) as sess:
     model = Model(FLAGS, dataset, sess, graph)
     model.train()

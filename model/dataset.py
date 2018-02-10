@@ -24,6 +24,8 @@ from tensorflow.python.framework import tensor_shape
 from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 
+MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1
+
 def create_image_lists_by_percentage(image_dir, testing_percentage,
                                              validation_percentage):
   """Builds a list of training images from the file system.
@@ -203,27 +205,27 @@ class Dataset:
 
   """
   def __init__(self, dataset_info):
-    self.image_dir = dataset_info.image_dir
+    self.image_dir = dataset_info['image_dir']
     self.dataset_info = dataset_info
     self.image_lists = self.create_image_lists()
     self.class_num = len(self.image_lists.keys())
-    if class_count == 0:
+    if self.class_num == 0:
       tf.logging.error('No valid folders of images found at ' + self.image_dir)
-    if class_count == 1:
+    if self.class_num == 1:
       tf.logging.error('Only one valid folder of images found at ' +
                        self.image_dir +
                        ' - multiple classes are needed for classification.')
 
   def create_image_lists(self):
     # Look at the folder structure, and create lists of all the images.
-    if dataset_info[percentage] == True:
-      return create_image_lists_by_percentage(self.dataset_info[image_dir],
-                                    self.dataset_info[testing_percentage],
-                                    self.dataset_info[validation_percentage])
+    if True:
+      return create_image_lists_by_percentage(self.dataset_info['image_dir'],
+                                    self.dataset_info['testing_percentage'],
+                                    self.dataset_info['validation_percentage'])
     else:
-      return create_image_lists_by_percentage(self.dataset_info[image_dir],
-                                    self.dataset_info[testing_percentage],
-                                    self.dataset_info[validation_percentage])
+      return create_image_lists_by_percentage(self.dataset_info['image_dir'],
+                                    self.dataset_info['testing_percentage'],
+                                    self.dataset_info['validation_percentage'])
 
   def create_batch(self, batch_size = 1, category = 'training', is_shuffle = True):
     """make the batch generator
