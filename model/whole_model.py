@@ -176,7 +176,7 @@ def create_model_info(architecture):
 
 
 def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor,
-                           bottleneck_tensor_size, quantize_layer):
+                           bottleneck_tensor_size, quantize_layer, FLAGS):
   """Adds a new softmax and fully-connected layer for training.
 
   We need to retrain the top layer to identify our new classes, so this function
@@ -330,8 +330,8 @@ class Model:
     # Add the new layer that we'll be training.
     self.bottleneck_info = create_bottleneck_info(
                         add_final_training_ops(self.Dataset.class_num,
-                            FLAGS.final_tensor_name, feature_tensor,
-                            self.bottleneck_dim, model_info['quantize_layer']))
+                            self.FLAGS.final_tensor_name, feature_tensor,
+                            self.bottleneck_dim, model_info['quantize_layer']), self.FLAGS)
 
     # Create the operations we need to evaluate the accuracy of our new layer.
     self.evaluation_info = create_evaluation_info(
@@ -339,10 +339,10 @@ class Model:
                                 ,self.bottleneck_info['ground_truth_input']))
     # Merge all the summaries and write them out to the summaries_dir
     self.merged = tf.summary.merge_all()
-    self.train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
+    self.train_writer = tf.summary.FileWriter(self.FLAGS.summaries_dir + '/train',
                                          self.sess.graph)
     self.validation_writer = tf.summary.FileWriter(
-        FLAGS.summaries_dir + '/validation')
+        self.FLAGS.summaries_dir + '/validation')
 
     # Set up all our weights to their initial default values.
     init = tf.global_variables_initializer()
@@ -353,12 +353,12 @@ class Model:
                             filters = 24,
                             output_dim = self.bottleneck_dim)
     densenet =  DenseNet(self.input_tensor, self.training_flag,
-                                FLAGS.dropout_rate, densenet_info)
+                                self.FLAGS.dropout_rate, densenet_info)
     densenet_info = create_densenet_info(nb_blocks_layers = [6, 12, 48, 32],
                             filters = 24,
                             output_dim = self.bottleneck_dim)
     densenet =  DenseNet(self.input_tensor, self.training_flag,
-                                FLAGS.dropout_rate, densenet_info)
+                                self.FLAGS.dropout_rate, densenet_info)
     feature_tensor = densenet.model
     return feature_tensor
 
@@ -386,7 +386,7 @@ class Model:
 
       # Every so often, print out how well the graph is training.
       is_last_step = (i + 1 == self.FLAGS.how_many_training_steps)
-      if (i % FLAGS.eval_step_interval) == 0 or is_last_step:
+      if (i % self.FLAGS.eval_step_interval) == 0 or is_last_step:
         train_accuracy, cross_entropy_value = sess.run(
             [self.evaluation_info['evaluation_step'],
             self.bottleneck_info['cross_entropy']],
@@ -439,7 +439,7 @@ class Model:
     tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
                     (test_accuracy * 100, len(test_bottlenecks)))
 
-    if FLAGS.print_misclassified_test_images:
+    if self.FLAGS.print_misclassified_test_images:
       tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
       for i, test_filename in enumerate(test_filenames):
         if predictions[i] != test_ground_truth[i]:
@@ -458,10 +458,10 @@ class Model:
     # some new images we haven't used before.
     test_bottlenecks, test_ground_truth, test_filenames = (
         get_random_cached_bottlenecks(
-            sess, image_lists, FLAGS.test_batch_size, 'testing',
-            FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
+            sess, image_lists, self.FLAGS.test_batch_size, 'testing',
+            self.FLAGS.bottleneck_dir, self.FLAGS.image_dir, jpeg_data_tensor,
             decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
-            FLAGS.architecture))
+            self.FLAGS.architecture))
     test_accuracy, predictions = sess.run(
         [self.evaluation_step, prediction],
         feed_dict={bottleneck_input: test_bottlenecks,
@@ -469,7 +469,7 @@ class Model:
     tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
                     (test_accuracy * 100, len(test_bottlenecks)))
 
-    if FLAGS.print_misclassified_test_images:
+    if self.FLAGS.print_misclassified_test_images:
       tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
       for i, test_filename in enumerate(test_filenames):
         if predictions[i] != test_ground_truth[i]:
