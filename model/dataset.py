@@ -258,7 +258,7 @@ class Dataset:
         jpeg_data = gfile.FastGFile(image_path, 'rb').read()
         image_datas.append(jpeg_data)
         ground_truths.append(label_index)
-        filenames.append(image_name)
+        filenames.append(image_path)
         if i % batch_size == 0:
           yield image_datas, ground_truths, filenames
           image_datas = []
