@@ -61,11 +61,11 @@ def Linear(x, output_dim, name) :
 
 def create_densenet_info(nb_blocks_layers = [6, 12, 48, 32], filters = 24,
                         output_dim = 1000):
-    if not isinstance(nb_blocks_layers, list):
+    if not isinstance(type(nb_blocks_layers), list):
         tf.logging.fatal('DenseNet: nb_blocks_layers does not list type.')
-    if not isinstance(filters, int):
+    if not isinstance(type(filters), int):
         tf.logging.fatal('DenseNet: filters does not int type.')
-    if not isinstance(output_dim, int):
+    if not isinstance(type(output_dim), int):
         tf.logging.fatal('DenseNet: filters does not int type.')
 
     return { 'nb_blocks_layers': nb_blocks_layers,
@@ -75,10 +75,10 @@ def create_densenet_info(nb_blocks_layers = [6, 12, 48, 32], filters = 24,
 class DenseNet():
     def __init__(self, x, training, dropout_rate, densenet_info):
         self.training = training
-        if not isinstance(self.training, tf.placeholder(tf.bool)):
+        if not isinstance(type(self.training), tf.placeholder(tf.bool)):
             tf.logging.fatal('DenseNet: training_flag does not bool type.')
         self.dropout_rate = dropout_rate
-        if not isinstance(self.dropout_rate, float):
+        if not isinstance(type(self.dropout_rate), float):
             tf.logging.fatal('DenseNet: dropout_rate does not bool type.')
         self.densenet_info = densenet_info
         self.nb_blocks_layers = densenet_info['nb_blocks_layers']
@@ -145,7 +145,7 @@ class DenseNet():
         # x = Max_Pooling(x, pool_size=[3,3], stride=2)
 
         for i, nb_layers in enumerate(self.nb_blocks_layers, 1):
-            if not isinstance(nb_layers, int):
+            if not isinstance(type(nb_layers), int):
                 tf.logging.fatal('DenseNet: nb_layers does not int type.')
             # 6 -> 12 -> 48
             x = self.dense_block(input_x=x, nb_layers= nb_layers, layer_name='dense_'
