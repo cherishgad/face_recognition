@@ -411,11 +411,6 @@ class Model:
                             output_dim = self.bottleneck_dim)
     densenet =  DenseNet(self.input_tensor, self.training_flag,
                                 self.FLAGS.dropout_rate, densenet_info)
-    densenet_info = create_densenet_info(nb_blocks_layers = [6, 12, 48, 32],
-                            filters = 24,
-                            output_dim = self.bottleneck_dim)
-    densenet =  DenseNet(self.input_tensor, self.training_flag,
-                                self.FLAGS.dropout_rate, densenet_info)
     feature_tensor = densenet.model
     return feature_tensor
 
