@@ -26,6 +26,18 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from densenet import DenseNet, create_densenet_info
 
+def variable_summaries(var):
+  """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+  with tf.name_scope('summaries'):
+    mean = tf.reduce_mean(var)
+    tf.summary.scalar('mean', mean)
+    with tf.name_scope('stddev'):
+      stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+    tf.summary.scalar('stddev', stddev)
+    tf.summary.scalar('max', tf.reduce_max(var))
+    tf.summary.scalar('min', tf.reduce_min(var))
+    tf.summary.histogram('histogram', var)
+
 def save_graph_to_file(sess, graph, graph_file_name, final_tensor_name):
   output_graph_def = graph_util.convert_variables_to_constants(
       sess, graph.as_graph_def(), [final_tensor_name])
