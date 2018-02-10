@@ -39,6 +39,15 @@ def prepare_file_system():
     ensure_dir_exists(FLAGS.intermediate_output_graphs_dir)
   return
 
+def ensure_dir_exists(dir_name):
+  """Makes sure the folder exists on disk.
+
+  Args:
+    dir_name: Path string to the folder we want to create.
+  """
+  if not os.path.exists(dir_name):
+    os.makedirs(dir_name)
+
 def main(_):
   # Needed to make sure the logging output is visible.
   # See https://github.com/tensorflow/tensorflow/issues/3047
