@@ -455,7 +455,7 @@ class Model:
       if (i % self.FLAGS.eval_step_interval) == 0 or is_last_step:
         train_accuracy, cross_entropy_value = self.sess.run(
             [self.evaluation_info['evaluation_step'],
-            self.bottleneck_info['cross_entropy']],
+            self.bottleneck_info['cross_entropy_mean']],
             feed_dict={self.input_tensor: train_input_datas,
                  self.bottleneck_info['ground_truth_input']: train_ground_truths,
                  self.training_flag: False })
@@ -481,7 +481,7 @@ class Model:
         self.validation_writer.add_summary(validation_summary, i)
         tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
                         (datetime.now(), i, validation_accuracy * 100,
-                         len(self.model_info['bottleneck_tensor_size'])))
+                         self.model_info['bottleneck_tensor_size']))
 
       # Store intermediate results
       intermediate_frequency = self.FLAGS.intermediate_store_frequency
@@ -514,7 +514,7 @@ class Model:
         self.bottleneck_info['ground_truth_input']: test_ground_truths,
         self.training_flag: False })
     tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
-                    (test_accuracy * 100, len(self.model_info['bottleneck_tensor_size'])))
+                    (test_accuracy * 100, self.model_info['bottleneck_tensor_size']))
 
     if self.FLAGS.print_misclassified_test_images:
       tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
@@ -523,3 +523,10 @@ class Model:
           tf.logging.info('%70s  %s' %
                         (test_filename,
                          list(self.dataset.image_lists.keys())[predictions[i]]))
+  def save_graph_to_file(self):
+    # Write out the trained graph and labels with the weights stored as
+    # constants.
+    save_graph_to_file(self.sess, self.graph, self.FLAGS.output_graph,
+                       self.FLAGS.final_tensor_name)
+    with gfile.FastGFile(self.FLAGS.output_labels, 'w') as f:
+      f.write('\n'.join(self.dataset.image_lists.keys()) + '\n')
