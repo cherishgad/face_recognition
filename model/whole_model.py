@@ -388,7 +388,7 @@ class Model:
     self.bottleneck_info = create_bottleneck_info(
                         add_final_training_ops(self.dataset.class_num,
                             self.FLAGS.final_tensor_name, self.feature_tensor,
-                            self.bottleneck_dim, model_info['quantize_layer']), self.FLAGS)
+                            self.bottleneck_dim, model_info['quantize_layer'], self.FLAGS))
 
     # Create the operations we need to evaluate the accuracy of our new layer.
     self.evaluation_info = create_evaluation_info(
