@@ -1,6 +1,6 @@
 #iamge directory
 MsCelebV1_Faces_Aligned
-
+data
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

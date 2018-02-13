@@ -17,6 +17,7 @@ import tarfile
 
 import numpy as np
 from six.moves import urllib
+import six
 import tensorflow as tf
 
 from tensorflow.contrib.quantize.python import quant_ops
@@ -436,7 +437,7 @@ class Model:
     for i in range(self.FLAGS.how_many_training_steps):
 
       # Get a batch of input values, either calculated fresh every
-      (train_image_datas, train_ground_truths, _)=train_generator.next()
+      (train_image_datas, train_ground_truths, _)=six.next(train_generator)
       train_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
                                           self.decoded_image_tensor,
                                           train_image_datas)
@@ -466,7 +467,7 @@ class Model:
 
         # Get a batch of input values, either calculated fresh every
         (validation_image_datas, validation_ground_truths, _
-                                                ) = validation_generator.next()
+                                                ) = six.next(validation_generator)
         validation_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
                                             self.decoded_image_tensor,
                                             validation_image_datas)
@@ -502,7 +503,7 @@ class Model:
                             category = 'testing')
     # Get a batch of input values, either calculated fresh every
     (test_image_datas, test_ground_truths, test_filenames
-     ) = test_generator.next()
+     ) = six.next(test_generator)
     test_input_datas = get_batch_image(self.sess, self.jpeg_data_tensor,
                                        self.decoded_image_tensor,
                                        test_image_datas)
