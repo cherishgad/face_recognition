@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime
 import hashlib
 import os.path
+import os
 import random
 import re
 import sys
@@ -17,6 +18,7 @@ import tarfile
 import numpy as np
 from six.moves import urllib
 import tensorflow as tf
+import pandas as pd
 
 from tensorflow.contrib.quantize.python import quant_ops
 from tensorflow.python.framework import graph_util
@@ -25,6 +27,146 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1
+def save_index_numpys(index_numpy, output_path):
+  return None
+def load_index_numpys(input_path):
+  return None
+def save_image_lists(image_lists, output_dir):
+  """cashed dictionary
+  Args:
+    image_lists: Dictionary of training images for each label.
+    output_dir: String path to a folder containing subfolders holding cached files of image_list values.
+  """
+  sub_dirs = []
+  sub_dirs_path = os.path.join(output_dir, 'sub_dirs.csv')
+  for image_lists_key in image_lists.keys():
+    sub_dict = image_lists[image_lists_key]
+    sub_dir = sub_dict['dir']
+    sub_dirs.append(sub_dir)
+
+    training_images = sub_dict['training']
+    testing_images = sub_dict['testing']
+    validation_images = sub_dict['validation']
+    save_dir = os.path.join(output_dir, sub_dir)
+    #check the dirctory
+    if not os.path.isdir(save_dir):
+      os.makedirs(save_dir)
+    training_path = os.path.join(save_dir, 'training.csv')
+    validation_path = os.path.join(save_dir, 'validation.csv')
+    testing_path = os.path.join(save_dir, 'testing.csv')
+    save_list_in_csv(training_path, training_images)
+    save_list_in_csv(validation_path, validation_images)
+    save_list_in_csv(testing_path, testing_images)
+  save_list_in_csv(sub_dirs_path,sub_dirs)
+
+def load_image_lists(image_dir):
+  """cashed dictionary
+  Args:
+    image_dir: String path to a folder containing subfolders holding cached files of image_list values.
+  Return:
+    image_lists: Dictionary of training images for each label.
+  """
+  if not gfile.Exists(image_dir):
+    tf.logging.error("Image directory '" + image_dir + "' not found.")
+    return None
+  result = {}
+  sub_dirs = []
+  sub_dirs_path = os.path.join(image_dir, 'sub_dirs.csv')
+  if not os.path.exists(sub_dirs_path):
+    sub_dirs = [x[0] for x in gfile.Walk(image_dir)]
+  else:
+    sub_dirs = load_list_in_one_column_file(sub_dirs_path)
+  # The root directory comes first, so skip it.
+  is_root_dir = True
+  for sub_dir in sub_dirs:
+    if is_root_dir:
+      is_root_dir = False
+      continue
+    dir_name = os.path.basename(sub_dir)
+    if dir_name == image_dir:
+      continue
+    tf.logging.info("Loading image list in '" + dir_name + "'")
+
+    save_dir = os.path.join(image_dir, dir_name)
+    #check the dirctory
+    if not os.path.isdir(save_dir):
+      os.makedirs(save_dir)
+    training_path = os.path.join(save_dir, 'training.csv')
+    validation_path = os.path.join(save_dir, 'validation.csv')
+    testing_path = os.path.join(save_dir, 'testing.csv')
+
+    training_images = load_list_in_one_column_file(training_path)
+    validation_images = load_list_in_one_column_file(validation_path)
+    testing_images = load_list_in_one_column_file(testing_path)
+
+    if (len(training_images)+len(validation_images) + len(testing_images)) < 20:
+      tf.logging.warning(
+          'WARNING: Folder has less than 20 images, which may cause issues.' +
+          str(len(training_images)) + ' : '+  str(len(validation_images)) + ':'
+          + str(len(testing_images)))
+    label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+    result[label_name] = {
+        'dir': dir_name,
+        'training': training_images,
+        'testing': testing_images,
+        'validation': validation_images,
+    }
+  return result
+
+def load_list_in_one_column_file(file_path):
+  """save list in csv
+  Args:
+    file_path: String path to save file
+  Returns:
+    save_list: List
+  """
+  if not isinstance(file_path, str):
+    print (type(file_path))
+    print ('path should be string')
+    return []
+  if not gfile.Exists(file_path):
+    print("Image directory '" + file_path + "' not found.")
+    return []
+
+  with open (file_path, 'r') as f:
+    save_list = []
+    for line in f:
+        save_list.append(str(line).rstrip('\r\n'))
+    return save_list
+
+def save_list_in_csv(file_path, save_list):
+  """save list in csv
+  Args:
+    file_path: String path to save file
+    save_list: List or List of Lists
+
+  """
+  if not isinstance(file_path, str):
+    print (type(file_path))
+    print ('path should be string')
+    return
+
+  if not isinstance(save_list, list):
+    print (type(save_list))
+    print ('save_list should be list type')
+    return
+  if len(save_list) == 0:
+    with open(file_path, "wb") as f:
+      print('save_list have no row')
+    return
+  if isinstance(save_list[0], list):
+    #List of List
+    with open(file_path, "wb") as f:
+      df = pd.DataFrame(save_list)
+      df.to_csv(file_path, index=False, header=False)
+  elif isinstance(save_list, list):
+    #List
+    with open(file_path, "wb") as f:
+      df = pd.DataFrame(save_list, columns=["colummn"])
+      df.to_csv(file_path, index=False, header=False)
+  else:
+    print (type(save_list))
+    print (' is not avaliable input for save_list')
 
 def create_image_lists_by_percentage(image_dir, testing_percentage,
                                              validation_percentage):
@@ -144,14 +286,16 @@ def get_image_path(image_lists, label_name, index, image_dir, category):
   return full_path
 
 
-def create_dataset_info(image_dir, testing_percentage, validation_percentage):
+def create_dataset_info(image_dir, testing_percentage, validation_percentage
+                            ,cash_dic_dir):
   """Given the dataset setting for trining, returns information about it.
 
   Args:
     image_dir: String path to a folder containing subfolders of images.
     testing_percentage: Integer percentage of the images to reserve for tests.
     validation_percentage: Integer percentage of images reserved for validation.
-
+    cash_dic_dir: String path to a folder containing subfolder
+                                          which containing dictionary
   Returns:
     Dictionary of information about the setting
   """
@@ -168,7 +312,8 @@ def create_dataset_info(image_dir, testing_percentage, validation_percentage):
 
   return {'image_dir': image_dir,
         'testing_percentage' : testing_percentage,
-        'validation_percentage': validation_percentage }
+        'validation_percentage': validation_percentage,
+        'cash_dic_dir': cash_dic_dir}
 
 
 def make_index_numpys(image_lists, category):
@@ -205,6 +350,7 @@ class Dataset:
 
   """
   def __init__(self, dataset_info):
+    self.use_cash = False
     self.image_dir = dataset_info['image_dir']
     self.dataset_info = dataset_info
     self.image_lists = self.create_image_lists()
@@ -218,14 +364,26 @@ class Dataset:
 
   def create_image_lists(self):
     # Look at the folder structure, and create lists of all the images.
-    if True:
-      return create_image_lists_by_percentage(self.dataset_info['image_dir'],
-                                    self.dataset_info['testing_percentage'],
-                                    self.dataset_info['validation_percentage'])
+    image_lists = load_image_lists(self.dataset_info['cash_dic_dir'])
+    if image_lists != None:
+      self.use_cash = True
+      return image_lists
     else:
-      return create_image_lists_by_percentage(self.dataset_info['image_dir'],
+      if True:
+        image_lists = create_image_lists_by_percentage(
+                                    self.dataset_info['image_dir'],
                                     self.dataset_info['testing_percentage'],
                                     self.dataset_info['validation_percentage'])
+        save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
+        return image_lists
+      else:
+        image_lists = create_image_lists_by_percentage(
+                                    self.dataset_info['image_dir'],
+                                    self.dataset_info['testing_percentage'],
+                                    self.dataset_info['validation_percentage'])
+        save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
+        return iamge_lists
+
 
   def create_batch(self, batch_size = 1, category = 'training', is_shuffle = True):
     """make the batch generator
@@ -239,8 +397,19 @@ class Dataset:
     """
     image_lists = self.image_lists
     image_dir = self.image_dir
-    index_numpys = make_index_numpys(image_lists, category)
+    cash_path = os.path.join(
+                    self.dataset_info['cash_dic_dir'],category + '_numpy.csv')
+    if self.use_cash == True:
+      index_numpy = load_index_numpys(cash_path)
+
+      if index_numpy == None:
+        index_numpys = make_index_numpys(image_lists, category)
+        save_index_numpys(index_numpys, cash_path)
+    else:
+      index_numpys = make_index_numpys(image_lists, category)
+      save_index_numpys(index_numpys, cash_path)
     class_keys = image_lists.keys()
+
     while(True):
       if is_shuffle:
         random.shuffle(index_numpys)
@@ -276,7 +445,17 @@ class Dataset:
     """
     image_lists = self.image_lists
     image_dir = self.image_dir
-    index_numpys = make_index_numpys(image_lists, category)
+    cash_path = os.path.join(
+                    self.dataset_info['cash_dic_dir'],category + '_numpy.csv')
+    if self.use_cash == True:
+      index_numpy = load_index_numpys(cash_path)
+
+      if index_numpy == None:
+        index_numpys = make_index_numpys(image_lists, category)
+        save_index_numpys(index_numpys, cash_path)
+    else:
+      index_numpys = make_index_numpys(image_lists, category)
+      save_index_numpys(index_numpys, cash_path)
     class_keys = image_lists.keys()
     while(True):
       if is_shuffle:
