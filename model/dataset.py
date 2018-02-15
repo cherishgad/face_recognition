@@ -27,10 +27,27 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1
-def save_index_numpys(index_numpy, output_path):
-  return None
+def save_index_numpys(index_numpys, output_path):
+  """cashed index_numpys
+  Args:
+    index_numpys: List of numpys which contain label_index and image_index
+    output_path: String path to a file containig label_index and image_index
+  """
+  indexs_numpy = np.asarray(index_numpys)
+  with open( output_path, 'wb') as f:
+    np.save(f, indexs_numpy)
 def load_index_numpys(input_path):
-  return None
+  """cashed index_numpys
+  Args:
+    input_path: String path to a file containig label_index and image_index
+  Return:
+    index_numpy: List of numpys which contain label_index and image_index
+  """
+  if os.path.exists(input_path):
+    indexs_numpy = np.load(input_path)
+    return indexs_numpy.tolist()
+  else:
+    return None
 def save_image_lists(image_lists, output_dir):
   """cashed dictionary
   Args:
@@ -400,9 +417,9 @@ class Dataset:
     cash_path = os.path.join(
                     self.dataset_info['cash_dic_dir'],category + '_numpy.csv')
     if self.use_cash == True:
-      index_numpy = load_index_numpys(cash_path)
+      index_numpys = load_index_numpys(cash_path)
 
-      if index_numpy == None:
+      if index_numpys == None:
         index_numpys = make_index_numpys(image_lists, category)
         save_index_numpys(index_numpys, cash_path)
     else:

@@ -59,7 +59,7 @@ def main(_):
   #Look at the folder structure, and create dataset
   dataset_info = create_dataset_info(FLAGS.image_dir,
                       FLAGS.testing_percentage, FLAGS.validation_percentage,
-                      FLAGS.image_list_dir)
+                      FLAGS.image_lists_cash_dir)
   dataset = Dataset(dataset_info)
   class_count = dataset.class_num
   if class_count == 0:
@@ -204,7 +204,7 @@ if __name__ == '__main__':
       """
   )
   parser.add_argument(
-      '--image_list_dir',
+      '--image_lists_cash_dir',
       type=str,
       default='/tmp/cash_dic_dir',
       help='dir to cache image_list dictionary as files.'
