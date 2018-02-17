@@ -53,11 +53,15 @@ def save_image_lists(image_lists, output_dir):
   Args:
     image_lists: Dictionary of training images for each label.
     output_dir: String path to a folder containing subfolders holding cached files of image_list values.
+  Returns:
+    image_labels: List of image_lists key for each label
   """
   sub_dirs = []
+  image_labels = []
   sub_dirs_path = os.path.join(output_dir, 'sub_dirs.csv')
   for image_lists_key in image_lists.keys():
     sub_dict = image_lists[image_lists_key]
+    image_labels.append(image_lists_key)
     sub_dir = sub_dict['dir']
     sub_dirs.append(sub_dir)
 
@@ -75,24 +79,29 @@ def save_image_lists(image_lists, output_dir):
     save_list_in_csv(validation_path, validation_images)
     save_list_in_csv(testing_path, testing_images)
   save_list_in_csv(sub_dirs_path,sub_dirs)
-
+  return image_labels
 def load_image_lists(image_dir):
   """cashed dictionary
   Args:
     image_dir: String path to a folder containing subfolders holding cached files of image_list values.
-  Return:
+  Returns:
     image_lists: Dictionary of training images for each label.
+    image_labels: List of image_lists key for each label or None (no sub_dirs file)
   """
   if not gfile.Exists(image_dir):
     tf.logging.error("Image directory '" + image_dir + "' not found.")
     return None
+  sub_dirs_file_exist = False
+  image_labels = []
   result = {}
   sub_dirs = []
   sub_dirs_path = os.path.join(image_dir, 'sub_dirs.csv')
   if not os.path.exists(sub_dirs_path):
     sub_dirs = [x[0] for x in gfile.Walk(image_dir)]
+    sub_dirs_file_exist = False
   else:
     sub_dirs = load_list_in_one_column_file(sub_dirs_path)
+    sub_dirs_file_exist = True
   # The root directory comes first, so skip it.
   is_root_dir = True
   for sub_dir in sub_dirs:
@@ -122,13 +131,17 @@ def load_image_lists(image_dir):
           str(len(training_images)) + ' : '+  str(len(validation_images)) + ':'
           + str(len(testing_images)))
     label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+    if sub_dirs_file_exist:
+      image_labels.append(label_name)
     result[label_name] = {
         'dir': dir_name,
         'training': training_images,
         'testing': testing_images,
         'validation': validation_images,
     }
-  return result
+    if not sub_dirs_file_exist:
+      image_labels = None
+  return result, image_labels
 
 def load_list_in_one_column_file(file_path):
   """save list in csv
@@ -333,18 +346,19 @@ def create_dataset_info(image_dir, testing_percentage, validation_percentage
         'cash_dic_dir': cash_dic_dir}
 
 
-def make_index_numpys(image_lists, category):
+def make_index_numpys(image_lists, category, image_labels):
   """make the index_numpys
   Args:
     image_lists: A dictionary containing an entry for each label subfolder, with
     images split into training, testing, and validation sets within each label.
     category: Name string of which set of images to fetch - training, testing,
     or validation
+    image_labels: List of image_lists key for each label
   return:
     List of numpys which contain label_index and image_index
   """
   index_numpys = []
-  class_keys = image_lists.keys()
+  class_keys = image_labels
   class_count = len(class_keys)
   for label_index in range(class_count):
     label_name = list(class_keys)[label_index]
@@ -370,8 +384,8 @@ class Dataset:
     self.use_cash = False
     self.image_dir = dataset_info['image_dir']
     self.dataset_info = dataset_info
-    self.image_lists = self.create_image_lists()
-    self.class_num = len(self.image_lists.keys())
+    self.image_lists, self.image_labels = self.create_image_lists()
+    self.class_num = len(self.image_labels)
     if self.class_num == 0:
       tf.logging.error('No valid folders of images found at ' + self.image_dir)
     if self.class_num == 1:
@@ -381,25 +395,28 @@ class Dataset:
 
   def create_image_lists(self):
     # Look at the folder structure, and create lists of all the images.
-    image_lists = load_image_lists(self.dataset_info['cash_dic_dir'])
+    image_lists, image_labels = load_image_lists(self.dataset_info['cash_dic_dir'])
     if image_lists != None:
       self.use_cash = True
-      return image_lists
+      if image_labels == None:
+        self.use_cash = False
+        image_labels = save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
+      return image_lists, image_labels
     else:
       if True:
         image_lists = create_image_lists_by_percentage(
                                     self.dataset_info['image_dir'],
                                     self.dataset_info['testing_percentage'],
                                     self.dataset_info['validation_percentage'])
-        save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
-        return image_lists
+        image_labels = save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
+        return image_lists, image_labels
       else:
         image_lists = create_image_lists_by_percentage(
                                     self.dataset_info['image_dir'],
                                     self.dataset_info['testing_percentage'],
                                     self.dataset_info['validation_percentage'])
-        save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
-        return iamge_lists
+        image_labels = save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])
+        return iamge_lists, image_labels
 
 
   def create_batch(self, batch_size = 1, category = 'training', is_shuffle = True):
@@ -420,12 +437,12 @@ class Dataset:
       index_numpys = load_index_numpys(cash_path)
 
       if index_numpys == None:
-        index_numpys = make_index_numpys(image_lists, category)
+        index_numpys = make_index_numpys(image_lists, category, self.image_labels)
         save_index_numpys(index_numpys, cash_path)
     else:
-      index_numpys = make_index_numpys(image_lists, category)
+      index_numpys = make_index_numpys(image_lists, category, self.image_labels)
       save_index_numpys(index_numpys, cash_path)
-    class_keys = image_lists.keys()
+    class_keys = self.image_labels
 
     while(True):
       if is_shuffle:
@@ -468,12 +485,12 @@ class Dataset:
       index_numpy = load_index_numpys(cash_path)
 
       if index_numpy == None:
-        index_numpys = make_index_numpys(image_lists, category)
+        index_numpys = make_index_numpys(image_lists, category, self.image_labels)
         save_index_numpys(index_numpys, cash_path)
     else:
-      index_numpys = make_index_numpys(image_lists, category)
+      index_numpys = make_index_numpys(image_lists, category, self.image_labels)
       save_index_numpys(index_numpys, cash_path)
-    class_keys = image_lists.keys()
+    class_keys = self.image_labels
     while(True):
       if is_shuffle:
         random.shuffle(index_numpys)
