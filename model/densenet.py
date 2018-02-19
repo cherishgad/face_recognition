@@ -106,6 +106,35 @@ class DenseNet():
             # print(x)
 
             return x
+    def bottleneck_layer_op(self, layers_concat, scope):
+        # print(x)
+        with tf.name_scope(scope):
+            temp_x_list = []
+            for i in range(len(layers_concat)):
+                temp_x = Batch_Normalization(layers_concat[i], training=self.training,
+                                    scope=scope+'_batch1'+'_layer'+str(i))
+                temp_x = Relu(temp_x)
+                temp_x = conv_layer(temp_x, filter=4 * self.filters,
+                                        kernel=[1,1], layer_name=scope+'_conv1'+'_layer'+str(i))
+                #temp_x_list.append(temp_x)
+                if i == 0: #"""
+                    x = temp_x
+                else:
+                    x = tf.add(x, temp_x)#"""
+            #x = tf.add_n(temp_x_list)
+
+            x = Drop_out(x, rate=self.dropout_rate, training=self.training)
+
+            x = Batch_Normalization(x, training=self.training,
+                                        scope=scope+'_batch2')
+            x = Relu(x)
+            x = conv_layer(x, filter=self.filters, kernel=[3,3],
+                                        layer_name=scope+'_conv2')
+            x = Drop_out(x, rate=self.dropout_rate, training=self.training)
+
+            # print(x)
+
+            return x
 
     def transition_layer(self, x, scope):
         with tf.name_scope(scope):
@@ -130,9 +159,11 @@ class DenseNet():
             layers_concat.append(x)
 
             for i in range(nb_layers - 1):
-                x = Concatenation(layers_concat)
-                x = self.bottleneck_layer(x, scope=layer_name + '_bottleN_'
-                                                                + str(i + 1))
+                #x = Concatenation(layers_concat)
+                #x = self.bottleneck_layer(x, scope=layer_name + '_bottleN_'
+                #                                               + str(i + 1))
+                x =  self.bottleneck_layer_op(layers_concat, scope=layer_name
+                                            + '_bottleN_' + str(i + 1))
                 layers_concat.append(x)
 
             x = Concatenation(layers_concat)
