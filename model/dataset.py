@@ -54,14 +54,15 @@ def save_image_lists(image_lists, output_dir):
     image_lists: Dictionary of training images for each label.
     output_dir: String path to a folder containing subfolders holding cached files of image_list values.
   Returns:
-    image_labels: List of image_lists key for each label
+    image_lists_keys: List of image_lists key for each label or None at error case
   """
   sub_dirs = []
-  image_labels = []
   sub_dirs_path = os.path.join(output_dir, 'sub_dirs.csv')
-  for image_lists_key in image_lists.keys():
+  if not isinstance(image_lists, dict):
+    return None
+  image_lists_keys = list(image_lists.keys())
+  for image_lists_key in image_lists_keys:
     sub_dict = image_lists[image_lists_key]
-    image_labels.append(image_lists_key)
     sub_dir = sub_dict['dir']
     sub_dirs.append(sub_dir)
 
@@ -75,12 +76,18 @@ def save_image_lists(image_lists, output_dir):
     training_path = os.path.join(save_dir, 'training.csv')
     validation_path = os.path.join(save_dir, 'validation.csv')
     testing_path = os.path.join(save_dir, 'testing.csv')
-    save_list_in_csv(training_path, training_images)
-    save_list_in_csv(validation_path, validation_images)
-    save_list_in_csv(testing_path, testing_images)
+    error_message = save_list_in_csv(training_path, training_images)
+    if not error_message == None :
+      tf.logging.error(sub_dir + ' train_set:' + error_message)
+    error_message = save_list_in_csv(validation_path, validation_images)
+    if not error_message == None :
+      tf.logging.error(sub_dir + ' val_set:' + error_message)
+    error_message = save_list_in_csv(testing_path, testing_images)
+    if not error_message == None :
+      tf.logging.error(sub_dir + ' test_set:' + error_message)
   save_list_in_csv(sub_dirs_path,sub_dirs)
-  return image_labels
-def load_image_lists(image_dir):
+  return image_lists_keys
+def load_image_lists_from_cash(image_dir):
   """cashed dictionary
   Args:
     image_dir: String path to a folder containing subfolders holding cached files of image_list values.
@@ -89,8 +96,8 @@ def load_image_lists(image_dir):
     image_labels: List of image_lists key for each label or None (no sub_dirs file)
   """
   if not gfile.Exists(image_dir):
-    tf.logging.error("Image directory '" + image_dir + "' not found.")
-    return None
+    tf.logging.info("Image cash directory '" + image_dir + "' not found.")
+    return None, None
   sub_dirs_file_exist = False
   image_labels = []
   result = {}
@@ -169,21 +176,21 @@ def save_list_in_csv(file_path, save_list):
   Args:
     file_path: String path to save file
     save_list: List or List of Lists
-
+  Return:
+    error: String message about error, it is None at normal case
   """
+  error = None
   if not isinstance(file_path, str):
-    print (type(file_path))
-    print ('path should be string')
-    return
+    error ='"' + str(type(file_path)) +'" path should be string'
+    return error
 
   if not isinstance(save_list, list):
-    print (type(save_list))
-    print ('save_list should be list type')
-    return
+    error = str(type(save_list)) + 'save_list should be list type'
+    return error
   if len(save_list) == 0:
     with open(file_path, "wb") as f:
-      print('save_list have no row')
-    return
+      error = 'save_list have no row'
+    return error
   if isinstance(save_list[0], list):
     #List of List
     with open(file_path, "wb") as f:
@@ -195,9 +202,8 @@ def save_list_in_csv(file_path, save_list):
       df = pd.DataFrame(save_list, columns=["colummn"])
       df.to_csv(file_path, index=False, header=False)
   else:
-    print (type(save_list))
-    print (' is not avaliable input for save_list')
-
+    error = str(type(save_list)) + ' is not avaliable input for save_list'
+  return error
 def create_image_lists_by_percentage(image_dir, testing_percentage,
                                              validation_percentage):
   """Builds a list of training images from the file system.
@@ -385,7 +391,10 @@ class Dataset:
     self.image_dir = dataset_info['image_dir']
     self.dataset_info = dataset_info
     self.image_lists, self.image_labels = self.create_image_lists()
-    self.class_num = len(self.image_labels)
+    if isinstance(self.image_labels, list):
+      self.class_num = len(self.image_labels)
+    else:
+      self.class_num = 0
     if self.class_num == 0:
       tf.logging.error('No valid folders of images found at ' + self.image_dir)
     if self.class_num == 1:
@@ -395,9 +404,10 @@ class Dataset:
 
   def create_image_lists(self):
     # Look at the folder structure, and create lists of all the images.
-    image_lists, image_labels = load_image_lists(self.dataset_info['cash_dic_dir'])
+    image_lists, image_labels = load_image_lists_from_cash(self.dataset_info['cash_dic_dir'])
     if image_lists != None:
       self.use_cash = True
+      tf.logging.info('load image list from cash file')
       if image_labels == None:
         self.use_cash = False
         image_labels = save_image_lists(image_lists, self.dataset_info['cash_dic_dir'])

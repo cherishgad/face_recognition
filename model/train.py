@@ -71,7 +71,7 @@ def main(_):
                      ' - multiple classes are needed for classification.')
     return -1
   with tf.Graph().as_default() as graph:
-    print("sucess: making dataset")
+    tf.logging.info("sucess: making dataset")
   with tf.Session(graph=graph) as sess:
     model = Model(FLAGS, dataset, sess, graph)
     model.train()
