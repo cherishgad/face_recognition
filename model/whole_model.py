@@ -26,6 +26,7 @@ from tensorflow.python.framework import tensor_shape
 from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from densenet import DenseNet, create_densenet_info
+from inception_resnet_v2 import inception_resnet_v2
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
@@ -33,7 +34,7 @@ def get_available_gpus():
 def get_available_cpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'CPU']
-    
+
 def variable_summaries(var):
   """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
   with tf.name_scope('summaries'):
@@ -148,7 +149,21 @@ def create_model_info(architecture):
   """
   architecture = architecture.lower()
   is_quantized = False
-  if architecture == 'densenet':
+  if architecture == 'inception_resnet_v2':
+    #pylint: disable=line-too-long
+    data_url = None
+    #pylint: disable=line-too-long
+    bottleneck_tensor_name = None
+    bottleneck_tensor_size = 2048
+    input_width = 300
+    input_height = 300
+    input_depth = 3
+    resized_input_tensor_name = ''
+    model_file_name = None
+    input_mean = 128
+    input_std = 128
+
+  elif architecture == 'densenet':
     # pylint: disable=line-too-long
     data_url = None
     # pylint: enable=line-too-long
@@ -425,12 +440,15 @@ class Model:
     self.sess.run(init)
 
   def create_bottleneck(self):
-    densenet_info = create_densenet_info(nb_blocks_layers = [6, 12, 48, 32],
-                            filters = 24,
-                            output_dim = self.bottleneck_dim)
-    densenet =  DenseNet(self.input_tensor, self.training_flag,
-                                self.FLAGS.dropout_rate, densenet_info)
-    feature_tensor = densenet.model
+    if self.FLAGS.architecture.lower() == 'densenet':
+      densenet_info = create_densenet_info(nb_blocks_layers = [6, 12, 48, 32],
+                              filters = 24,
+                              output_dim = self.bottleneck_dim)
+      densenet =  DenseNet(self.input_tensor, self.training_flag,
+                                  self.FLAGS.dropout_rate, densenet_info)
+      feature_tensor = densenet.model
+    elif self.FLAGS.architecture.lower() ==  'inception_resnet_v2':
+      feature_tensor, _ = inception_resnet_v2(self.input_tensor, self.training_flag, 0.8, self.bottleneck_dim)
     return feature_tensor
 
   def train(self):

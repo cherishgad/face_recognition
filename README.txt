@@ -9,3 +9,6 @@ retrain.py
 
 Densenet_Cifar.py
 	https://github.com/taki0112/Densenet-Tensorflow/blob/master/Cifar10/Densenet_Cifar10.py
+	
+Inception_ResNet
+  https://github.com/davidsandberg/facenet/blob/master/src/models/inception_resnet_v2.py
